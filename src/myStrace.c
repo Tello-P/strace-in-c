@@ -6,7 +6,7 @@
  #include <sys/user.h>
 #include <sys/syscall.h>
 #include <unistd.h>
-
+#include "../include/syscall_names_x86_64.h"
 
 
 int main(){
@@ -63,7 +63,7 @@ int main(){
       }
       
       printf("Syscall num: %llu\n", regs.orig_rax);
-
+      printf("Syscall def: %s\n", get_syscall_name(regs.orig_rax));
 
      
     }
