@@ -10,10 +10,10 @@
 int main(){
 
 
-  pid_t child;
+  pid_t child_pid;
 
   /* CHILD PROCESS */
-  if ((child = fork()) == 0){
+  if ((child_pid = fork()) == 0){
     printf("hello from the child\n");
     printf("This is the PID: %d\n", getpid());
     ptrace(PTRACE_TRACEME, 0, NULL, NULL);  // PID, ADDR and DATA are ignored if TRACEME 
@@ -25,7 +25,7 @@ int main(){
     perror("execvp error");
     exit(EXIT_FAILURE);
 }
-  else if(child<0){
+  else if(child_pid<0){
     perror("fork error");
     return -1;
   }
@@ -36,11 +36,25 @@ int main(){
     
     int state;
 
-    wait(&state);
+    waitpid(child_pid, &state, 0);
 
-    while (WIFSTOPPED(state)){
-      printf("Child is stopped\n");
-      return 1;
+
+    while (1){
+
+      if (ptrace(PTRACE_SYSCALL, child_pid, 0, 0)==-1){
+        perror("ptrace exited");
+        break;
+      }  // Makes the tracee advance till the next stop
+
+
+      waitpid(child_pid, &state, 0);
+      if (WIFEXITED(state)){
+        printf("Process exited\n");
+        break;
+      }
+
+      printf("Child with PID: %d stopped\n", child_pid);
+
     }
 
   }
