@@ -1,0 +1,9 @@
+I had an issue where my loop was printing the syscall number multiple times or in a messy way, and sometimes it showed wrong or old values. The main mistake was the wrong order of operations inside the while loop.
+
+Basically, I was calling PTRACE_GETREGS and printing the syscall number before doing waitpid. That meant I was often reading registers from a previous stop or before the child had actually paused at the new syscall point. Because of that, I ended up printing the same syscall number twice for each real call (once on entry and again later), and the flow didn’t follow the proper ptrace sequence.
+
+To fix it, I reorganized the loop like this: first I tell the child to continue with PTRACE_SYSCALL, then I wait for it to stop with waitpid, check if it exited, and only after that I safely read the registers with PTRACE_GETREGS and print the syscall number from orig_rax. This way I make sure I’m always reading fresh, correct register values right after each stop.
+
+Now it prints each syscall number cleanly once per stop (both on entry and exit, which is expected at this stage), the values match the real syscalls the child is making, and the program behaves much more reliably without skipping stops or showing garbage.
+
+Next step will probably be adding a flag to tell entry from exit so I can print the syscall number only once per call and show the return value from rax only on exit.

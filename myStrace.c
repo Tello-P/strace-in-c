@@ -3,6 +3,8 @@
 #include <sys/types.h>
 #include <sys/ptrace.h>
 #include <sys/wait.h>
+ #include <sys/user.h>
+#include <sys/syscall.h>
 #include <unistd.h>
 
 
@@ -33,28 +35,37 @@ int main(){
   else{
     printf("hello from the parent\n");
     printf("This is the PID: %d\n", getpid());
-    
+
     int state;
 
     waitpid(child_pid, &state, 0);
 
 
+    struct user_regs_struct regs; //struct to get regs defined in user.h
     while (1){
 
       if (ptrace(PTRACE_SYSCALL, child_pid, 0, 0)==-1){
         perror("ptrace exited");
         break;
       }  // Makes the tracee advance till the next stop
-
-
+      /////////////////////////////////////////////////////////////
       waitpid(child_pid, &state, 0);
       if (WIFEXITED(state)){
         printf("Process exited\n");
+        return 1;
+      }
+      /////////////////////////////////////////////////////////////
+ 
+
+      if (ptrace(PTRACE_GETREGS, child_pid, NULL, &regs) == -1) {
+        perror("ptrace(PTRACE_GETREGS)");
         break;
       }
+      
+      printf("Syscall num: %llu\n", regs.orig_rax);
 
-      printf("Child with PID: %d stopped\n", child_pid);
 
+     
     }
 
   }
