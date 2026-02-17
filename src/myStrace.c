@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/ptrace.h>
 #include <sys/wait.h>
@@ -7,6 +8,34 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 #include "../include/syscall_names_x86_64.h"
+
+
+
+char* read_data(pid_t pid, unsigned long regAddr){
+  int allocated=4096;
+  char *data = malloc(allocated);  // no particular reason, just might be enough
+  long buffer;
+  int bytesRegistered=0;
+
+  while (1){
+    buffer = ptrace(PTRACE_PEEKDATA, pid, regAddr+bytesRegistered, NULL); //8 bytes each time
+    if (buffer==-1.0){
+      printf("\nWARNING: ptrace_peekdata returned -1\n");
+      break;
+    }
+    
+    char *aux = (char *)&buffer; // convert to char
+
+    for (int i=0; i<8; i++){
+      data[bytesRegistered] = aux[i];
+      bytesRegistered++;
+      if (aux[i] == '\0'){
+        return data;
+      }
+    }
+  }
+    return data;
+}
 
 
 int main(){
@@ -38,6 +67,7 @@ int main(){
 
     int state;
     int entry=1;// ALWAYS START AT ONE
+    char *syscallName;
 
     waitpid(child_pid, &state, 0);
   
@@ -65,17 +95,22 @@ int main(){
       }
     
       if (entry) {
+            syscallName = get_syscall_name(regs.orig_rax);
             // SYSCALL ENTRY: orig_rax is the ID
-            printf("Syscall: %-15s (ID: %3llu) ", 
-                   get_syscall_name(regs.orig_rax), regs.orig_rax);
+            printf("Syscall: %-15s (ID: %3llu) ",
+                   syscallName, regs.orig_rax);
             entry = 0; 
         } else {
             // SYSCALL EXIT: rax is the Result
-            // Use %lld to see negative error codes (e.g., -2 for ENOENT)
             if ((long long)regs.rax < 0 && (long long)regs.rax > -4096) {
                 printf(" | Result: ERROR (%lld)\n", (long long)regs.rax);
             } else {
                 printf(" | Result: 0x%llx\n", regs.rax);
+                // returning the data
+                if (strcmp(syscallName, "openat")==0){
+                char *dataString = read_data(child_pid, regs.rsi);
+                printf("DATA: %s\n", dataString);
+          }
             }
             entry = 1;
         }
