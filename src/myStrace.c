@@ -37,11 +37,13 @@ int main(){
     printf("This is the PID: %d\n", getpid());
 
     int state;
+    int entry=1;// ALWAYS START AT ONE
 
     waitpid(child_pid, &state, 0);
+  
 
-
-    struct user_regs_struct regs; //struct to get regs defined in user.h
+    struct user_regs_struct regs; //struct to get regs defined in user.h  
+    ptrace(PTRACE_SETOPTIONS, child_pid, 0, PTRACE_O_TRACESYSGOOD); // better syscall tracking
     while (1){
 
       if (ptrace(PTRACE_SYSCALL, child_pid, 0, 0)==-1){
@@ -61,14 +63,28 @@ int main(){
         perror("ptrace(PTRACE_GETREGS)");
         break;
       }
-      
-      printf("Syscall num: %llu\n", regs.orig_rax);
-      printf("Syscall def: %s\n", get_syscall_name(regs.orig_rax));
+    
+      if (entry) {
+            // SYSCALL ENTRY: orig_rax is the ID
+            printf("Syscall: %-15s (ID: %3llu) ", 
+                   get_syscall_name(regs.orig_rax), regs.orig_rax);
+            entry = 0; 
+        } else {
+            // SYSCALL EXIT: rax is the Result
+            // Use %lld to see negative error codes (e.g., -2 for ENOENT)
+            if ((long long)regs.rax < 0 && (long long)regs.rax > -4096) {
+                printf(" | Result: ERROR (%lld)\n", (long long)regs.rax);
+            } else {
+                printf(" | Result: 0x%llx\n", regs.rax);
+            }
+            entry = 1;
+        }
 
+
+    }
      
     }
 
-  }
 
 
   return 0;
