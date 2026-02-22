@@ -38,16 +38,17 @@ char* read_data(pid_t pid, unsigned long regAddr){
 }
 
 
-int main(){
+int main(int argc, char* argv[]){
   pid_t child_pid;
 
   /* CHILD PROCESS */
   if ((child_pid = fork()) == 0){
     ptrace(PTRACE_TRACEME, 0, NULL, NULL);  // PID, ADDR and DATA are ignored if TRACEME 
-    char *args[] = {"/bin/ls", "-l", "/home", NULL};  // REMOVE THIS WITH REAL ARGS
+    char *args[] = {"ls", "-l"};  // REMOVE THIS WITH REAL ARGS
+    
 
     // execvp(program route, args)
-    execvp(args[0], args);
+    execvp(argv[1], argv);
 
     perror("execvp error");
     exit(EXIT_FAILURE);
