@@ -75,7 +75,7 @@ int main(int argc, char* argv[]){
   else{
     int state;
     int entry=1;// ALWAYS START AT ONE
-    char *syscallName;
+    const char *syscallName;
 
     if (isPidSelected && ptrace(PTRACE_ATTACH, child_pid, 0, 0)==-1){
       perror("ptrace attach exited");
