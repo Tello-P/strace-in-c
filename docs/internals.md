@@ -31,7 +31,7 @@ Initially, the control loop attempted to read registers immediately after signal
 4. **Sample**: Only after a successful wait is `PTRACE_GETREGS` called to read the `user_regs_struct`.
 
 
-[Watch Demo Video](getRegsProblems.mp4)
+[Watch Demo Video](getRegsProblem.mp4)
 
 This ensures the tracer always reads fresh register values provided by the kernel at the moment of the stop.
 
