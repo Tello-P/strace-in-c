@@ -7,6 +7,7 @@
 #include <sys/user.h>
 #include <sys/syscall.h>
 #include <unistd.h>
+#include <signal.h>
 #include "../include/syscall_names_x86_64.h"
 
 
@@ -37,10 +38,17 @@ char* read_data(pid_t pid, unsigned long regAddr){
   return data;
 }
 
+pid_t child_pid;
+
+void cleanup() {
+    ptrace(PTRACE_DETACH, child_pid, NULL, NULL);
+    printf("\nDetached from %d. Exiting.\n", child_pid);
+    exit(0);
+}
+
 
 int main(int argc, char* argv[]){
 
-  pid_t child_pid;
   int isPidSelected=0;
 
   for (int i=0; i< argc; i++){
@@ -73,6 +81,7 @@ int main(int argc, char* argv[]){
   }
   /* FATHER PROCESS */
   else{
+    signal(SIGINT, cleanup);
     int state;
     int entry=1;// ALWAYS START AT ONE
     const char *syscallName;
@@ -86,18 +95,43 @@ int main(int argc, char* argv[]){
 
     struct user_regs_struct regs; //struct to get regs defined in user.h  
     ptrace(PTRACE_SETOPTIONS, child_pid, 0, PTRACE_O_TRACESYSGOOD); // better syscall tracking
+    
+    /*
+     * The father takes the ctrl+c and the child doesnt die so we
+     * have to pass the ctrl+c to the child manually
+     */
+    int sig_to_pass=0;
+
     while (1){
 
-
-      if (ptrace(PTRACE_SYSCALL, child_pid, 0, 0)==-1){
+      if (ptrace(PTRACE_SYSCALL, child_pid, 0, (void *)(long)sig_to_pass)==-1){
         perror("ptrace exited");
         break;
       }  // Makes the tracee advance till the next stop
 
       waitpid(child_pid, &state, 0);
-      if (WIFEXITED(state)){
-        printf("Process exited\n");
-        return 1;
+      sig_to_pass = 0; // reset for next time
+
+      if (WIFEXITED(state)) {
+        printf("\n[mystrace] Process exited normally with status %d\n", WEXITSTATUS(state));
+        break;
+      }
+      if (WIFSIGNALED(state)) {
+        printf("\n[mystrace] Process killed by signal %d\n", WTERMSIG(state));
+        break;
+      }
+      if (WIFSTOPPED(state)) {
+        int stopsig = WSTOPSIG(state);
+
+        if (stopsig != (SIGTRAP | 0x80)) {
+          if (stopsig == SIGINT) {
+            printf("\n[mystrace] Child received SIGINT (Ctrl+C). Forwarding...\n");
+            sig_to_pass = SIGINT; 
+          } else {
+            sig_to_pass = stopsig;
+          }
+          continue; // Go top to deliver signal
+        }
       }
 
       if (ptrace(PTRACE_GETREGS, child_pid, NULL, &regs) == -1) {
@@ -123,6 +157,7 @@ int main(int argc, char* argv[]){
             printf("\n---------------\n");
             printf("DATA: %s\n", dataString);
             printf("-----------------\n");
+            free(dataString);
           }
         }
         entry = 1;
