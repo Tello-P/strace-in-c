@@ -39,20 +39,24 @@ char* read_data(pid_t pid, unsigned long regAddr){
 
 
 int main(int argc, char* argv[]){
-  
+
   pid_t child_pid;
   int isPidSelected=0;
 
   for (int i=0; i< argc; i++){
-    if (strcmp(argv[i], "-p")==0){
+    if ((strcmp(argv[i], "-p")==0) || (strcmp(argv[i], "--pid")==0)){
       isPidSelected=1;
       child_pid = atoi(argv[i+1]);
       printf("pid: %d\n", child_pid);
       break;
     }
+    else if ((strcmp(argv[i], "-h")==0)||(strcmp(argv[i], "--help")==0)){
+      printf("HELP MENU\n");
+      printf("Usage: \n\t mystrace (path to command) (args of command)\n\t mystrace (-p/--pid) (pid of process)\n");
+      exit(1);
+    }
   }
 
-  // ADD PID ALREADY RUNNING SUPPORT
   /* CHILD PROCESS */
   if (!isPidSelected && (child_pid = fork()) == 0){ // if returns 0 is the child, else is the father
     ptrace(PTRACE_TRACEME, 0, NULL, NULL);  // PID, ADDR and DATA are ignored if TRACEME 
@@ -73,17 +77,17 @@ int main(int argc, char* argv[]){
     int entry=1;// ALWAYS START AT ONE
     char *syscallName;
 
-      if (isPidSelected && ptrace(PTRACE_ATTACH, child_pid, 0, 0)==-1){
-        perror("ptrace attach exited");
-        exit(-1);
-      }
+    if (isPidSelected && ptrace(PTRACE_ATTACH, child_pid, 0, 0)==-1){
+      perror("ptrace attach exited");
+      exit(-1);
+    }
 
     waitpid(child_pid, &state, 0);
 
     struct user_regs_struct regs; //struct to get regs defined in user.h  
     ptrace(PTRACE_SETOPTIONS, child_pid, 0, PTRACE_O_TRACESYSGOOD); // better syscall tracking
     while (1){
-  
+
 
       if (ptrace(PTRACE_SYSCALL, child_pid, 0, 0)==-1){
         perror("ptrace exited");
